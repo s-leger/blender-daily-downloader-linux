@@ -2,7 +2,7 @@
 
 Download blender daily build automatically under linux  
 
-Retrieve download link from blender-fundation.org
+Retrieve download link from blender-fundation.org  
 Download / extract and setup a symlink  
 Cleanup downloaded file  
 
