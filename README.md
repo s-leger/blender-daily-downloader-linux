@@ -7,8 +7,10 @@ Download / extract and setup a symlink
 Cleanup downloaded file  
 
 ## Setup
+Intall as addon
 
-set the target sub directory in /home/user folder (Softs by default)  
+## Usage
+F3 -> install daily  
+
+set the target directory in /home/user folder (/home/user/Softs by default)  
 set the symlink name for daily build (blender-daily by default)  
-
-Run the script either from text editor or into python console
