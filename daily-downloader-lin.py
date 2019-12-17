@@ -33,7 +33,7 @@ bl_info = {
     'author': 's-leger',
     'license': 'GPL',
     'deps': '',
-    'version': (0, 0, 1),
+    'version': (0, 0, 2),
     'blender': (2, 80, 0),
     'location': 'search (F3) install daily',
     'warning': '',
@@ -61,14 +61,20 @@ def download_daily(dl_path, symlink):
         os.makedirs(dl_path)
 
     res = requests.get("https://builder.blender.org/download/")
-    match = re.search(r'''<li class="os linux"><a href=['"]/download/(.*?)\.tar\.bz2['"].*?(?:</a|/)>''', res.text, re.I)
-
+    match = re.search(r'''<li class="os linux"><a href=['"]/download/(.*?)\.tar\.([^"]+)['"].*?(?:</a|/)>''', res.text, re.I)
+    
     if match:
         filename = match.group(1)
-        url = "https://builder.blender.org/download/%s.tar.bz2" % filename
-        dl_file = os.path.join(dl_path, "%s.tar.bz2" % filename)
+        fileext = match.group(2)
+        print("%s.%s" % (filename, fileext))
+        url = "https://builder.blender.org/download/%s.tar.%s" % (filename, fileext)
+        dl_file = os.path.join(dl_path, "%s.tar.%s" % (filename, fileext))
         sym_folder = os.path.join(dl_path, symlink.strip())
         bz_folder = os.path.join(dl_path, filename)
+        print(dl_file)
+        print(sym_folder)
+        print(bz_folder)
+        
         try:
             shutil.rmtree(bz_folder, ignore_errors=False)
         except:
@@ -88,7 +94,7 @@ def download_daily(dl_path, symlink):
                 print("Read %s %%" % (100.0 * rsize / fsize))
         res.close()
         if fsize == rsize:
-            tar = tarfile.open(dl_file, "r:bz2")
+            tar = tarfile.open(dl_file, "r:%s" % fileext)
             tar.extractall(dl_path)
             tar.close()
             try:
@@ -96,10 +102,10 @@ def download_daily(dl_path, symlink):
             except:
                 pass
             os.symlink(bz_folder, sym_folder)
-            try:
-                os.unlink(dl_file)
-            except:
-                pass
+            # try:
+            #    os.unlink(dl_file)
+            # except:
+            #    pass
             return True
     return False
 
@@ -113,8 +119,7 @@ class SL_OT_install_daily(Operator):
     setup_subdir: StringProperty(
         name="Setup directory",
         description="Absolute setup directory (must be writeable)",
-        default=os.path.join(os.path.expanduser("~"), "Soft"),
-        subtype = "DIR_PATH"
+        default=os.path.join(os.path.expanduser("~"), "Softs")
     )
     symlink : StringProperty(
         name="symlink",
@@ -142,4 +147,3 @@ def register():
 def unregister():
     bpy.utils.unregister_class(SL_OT_install_daily)
     # bpy.utils.unregister_class()
-
