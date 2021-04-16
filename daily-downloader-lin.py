@@ -91,7 +91,7 @@ def download_daily(dl_path, symlink):
             for data in res.iter_content(chunk):
                 f.write(data)
                 rsize += len(data)
-                print("Read %s %%" % (100.0 * rsize / fsize))
+                print("Read %.4f %% " % (100.0 * rsize / fsize), end="\r")
         res.close()
         if fsize == rsize:
             tar = tarfile.open(dl_file, "r:%s" % fileext)
