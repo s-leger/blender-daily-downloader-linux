@@ -33,7 +33,7 @@ bl_info = {
     'author': 's-leger',
     'license': 'GPL',
     'deps': '',
-    'version': (0, 0, 2),
+    'version': (0, 0, 3),
     'blender': (2, 80, 0),
     'location': 'search (F3) install daily',
     'warning': '',
@@ -50,64 +50,65 @@ import os
 import tarfile
 import shutil
 import bpy
-from bpy.types import Operator
-from bpy.props import StringProperty
+from bpy.types import Operator, PropertyGroup
+from bpy.props import StringProperty, IntProperty, CollectionProperty
 
 
-def download_daily(dl_path, symlink):
+def download_daily(dl_path, symlink, build):
     # Absolute setup path under user home folder
 
     if not os.path.exists(dl_path):
         os.makedirs(dl_path)
 
-    res = requests.get("https://builder.blender.org/download/")
-    match = re.search(r'''<li class="os linux"><a href=['"]/download/(.*?)\.tar\.([^"]+)['"].*?(?:</a|/)>''', res.text, re.I)
-    
-    if match:
-        filename = match.group(1)
-        fileext = match.group(2)
-        print("%s.%s" % (filename, fileext))
-        url = "https://builder.blender.org/download/%s.tar.%s" % (filename, fileext)
-        dl_file = os.path.join(dl_path, "%s.tar.%s" % (filename, fileext))
-        sym_folder = os.path.join(dl_path, symlink.strip())
-        bz_folder = os.path.join(dl_path, filename)
-        print(dl_file)
-        print(sym_folder)
-        print(bz_folder)
-        
+    filename, fileext = build.name, build.fileext
+
+    print(filename)
+    url = "https://builder.blender.org/download/%s.tar.%s" % (filename, fileext)
+    dl_file = os.path.join(dl_path, "%s.tar.%s" % (filename, fileext))
+    sym_folder = os.path.join(dl_path, symlink.strip())
+    bz_folder = os.path.join(dl_path, filename)
+    print(dl_file)
+    print(sym_folder)
+    print(bz_folder)
+
+    try:
+        shutil.rmtree(bz_folder, ignore_errors=False)
+    except:
+        pass
+    try:
+        os.unlink(dl_file)
+    except:
+        pass
+    res = requests.get(url, stream=True)
+    fsize = int(res.headers.get('content-length'))
+    rsize = 0
+    chunk = 1024 * 8
+    with open(dl_file, "wb") as f:
+        for data in res.iter_content(chunk):
+            f.write(data)
+            rsize += len(data)
+            print("Read %.4f %%  " % (100.0 * rsize / fsize), end="\r")
+    res.close()
+    if fsize == rsize:
+        tar = tarfile.open(dl_file, "r:%s" % fileext)
+        tar.extractall(dl_path)
+        tar.close()
         try:
-            shutil.rmtree(bz_folder, ignore_errors=False)
+            os.unlink(sym_folder)
         except:
             pass
-        try:
-            os.unlink(dl_file)
-        except:
-            pass
-        res = requests.get(url, stream=True)
-        fsize = int(res.headers.get('content-length'))
-        rsize = 0
-        chunk = 1024 * 8
-        with open(dl_file, "wb") as f:
-            for data in res.iter_content(chunk):
-                f.write(data)
-                rsize += len(data)
-                print("Read %.4f %% " % (100.0 * rsize / fsize), end="\r")
-        res.close()
-        if fsize == rsize:
-            tar = tarfile.open(dl_file, "r:%s" % fileext)
-            tar.extractall(dl_path)
-            tar.close()
-            try:
-                os.unlink(sym_folder)
-            except:
-                pass
-            os.symlink(bz_folder, sym_folder)
-            # try:
-            #    os.unlink(dl_file)
-            # except:
-            #    pass
-            return True
+        os.symlink(bz_folder, sym_folder)
+        # try:
+        #    os.unlink(dl_file)
+        # except:
+        #    pass
+        return True
     return False
+
+
+class SLDAILY_builds(PropertyGroup):
+    name: StringProperty(name="Filename")
+    fileext: StringProperty(name="Fileext")
 
 
 class SL_OT_install_daily(Operator):
@@ -126,9 +127,18 @@ class SL_OT_install_daily(Operator):
         description="symlink to last downloaded version",
         default="blender-daily")
 
+    idx: IntProperty(default=0)
+    builds: CollectionProperty(type=SLDAILY_builds)
+
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(self, "setup_subdir")
+        layout.prop(self, "symlink")
+        layout.template_list("UI_UL_list", "SLDAILY_builds", self, "builds", self, "idx")
+
     def execute(self, context):
         if self.symlink.strip() != "" and self.setup_subdir.strip() != "":
-            res = download_daily(self.setup_subdir, self.symlink)
+            res = download_daily(self.setup_subdir, self.symlink, self.builds[self.idx])
             if res:
                 self.report({"INFO"}, "Setup success")
             else:
@@ -136,14 +146,27 @@ class SL_OT_install_daily(Operator):
         return {'FINISHED'}
 
     def invoke(self, context, event):
-        return context.window_manager.invoke_props_dialog(self)
 
+        res = requests.get("https://builder.blender.org/download/")
+        match = re.findall(r'''<li class="os linux"><a href=['"]/download/(.*?)\.tar\.([^"]+)['"].*?(?:</a|/)>''',
+                           res.text, re.I)
+
+        if match:
+            for filename, fileext in match:
+                build = self.builds.add()
+                build.name = filename
+                build.fileext = fileext
+
+            return context.window_manager.invoke_props_dialog(self)
+        self.report({"WARNING"}, "No build found")
+        return {"CANCELLED"}
 
 def register():
+    bpy.utils.register_class(SLDAILY_builds)
     bpy.utils.register_class(SL_OT_install_daily)
-    # bpy.utils.register_class()
-
+    
 
 def unregister():
     bpy.utils.unregister_class(SL_OT_install_daily)
-    # bpy.utils.unregister_class()
+    bpy.utils.unregister_class(SLDAILY_builds)
+    
