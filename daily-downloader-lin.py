@@ -33,7 +33,7 @@ bl_info = {
     'author': 's-leger',
     'license': 'GPL',
     'deps': '',
-    'version': (0, 0, 3),
+    'version': (0, 0, 4),
     'blender': (2, 80, 0),
     'location': 'search (F3) install daily',
     'warning': '',
@@ -60,26 +60,26 @@ def download_daily(dl_path, symlink, build):
     if not os.path.exists(dl_path):
         os.makedirs(dl_path)
 
-    filename, fileext = build.name, build.fileext
-
+    filename, fileext = build.filename, build.fileext
     print(filename)
-    url = "https://builder.blender.org/download/%s.tar.%s" % (filename, fileext)
+    url = "https://builder.blender.org/download/daily/%s.tar.%s" % (filename, fileext)
     dl_file = os.path.join(dl_path, "%s.tar.%s" % (filename, fileext))
     sym_folder = os.path.join(dl_path, symlink.strip())
     bz_folder = os.path.join(dl_path, filename)
     print(dl_file)
     print(sym_folder)
     print(bz_folder)
-
-    try:
-        shutil.rmtree(bz_folder, ignore_errors=False)
-    except:
-        pass
+    
+    
     try:
         os.unlink(dl_file)
     except:
         pass
-    res = requests.get(url, stream=True)
+    
+    try:
+        res = requests.get(url, stream=True)
+    except:
+        return False    
     fsize = int(res.headers.get('content-length'))
     rsize = 0
     chunk = 1024 * 8
@@ -90,6 +90,10 @@ def download_daily(dl_path, symlink, build):
             print("Read %.4f %%  " % (100.0 * rsize / fsize), end="\r")
     res.close()
     if fsize == rsize:
+        try:
+            shutil.rmtree(bz_folder, ignore_errors=False)
+        except:
+            pass
         tar = tarfile.open(dl_file, "r:%s" % fileext)
         tar.extractall(dl_path)
         tar.close()
@@ -107,7 +111,8 @@ def download_daily(dl_path, symlink, build):
 
 
 class SLDAILY_builds(PropertyGroup):
-    name: StringProperty(name="Filename")
+    name: StringProperty(name="Name")
+    filename: StringProperty(name="Filename")
     fileext: StringProperty(name="Fileext")
 
 
@@ -146,27 +151,36 @@ class SL_OT_install_daily(Operator):
         return {'FINISHED'}
 
     def invoke(self, context, event):
+           
+        try:
+            res = requests.get("https://builder.blender.org/download/daily/")
+        except requests.exceptions.ConnectionError:
+            self.report({"WARNING"}, "Unable to connect")
+            return {"CANCELLED"}
+        except Exception as ex:
+            self.report({"WARNING"}, "Unknown error while connecting %s" % ex)
+            return {"CANCELLED"}
 
-        res = requests.get("https://builder.blender.org/download/")
-        match = re.findall(r'''<li class="os linux"><a href=['"]/download/(.*?)\.tar\.([^"]+)['"].*?(?:</a|/)>''',
+        match = re.findall(r'''<a href=['"]https://builder.blender.org/download/daily/([^"]+)?\.tar\.([^"]+)['"].*?(?:</a|/)>''',
                            res.text, re.I)
 
         if match:
             for filename, fileext in match:
-                build = self.builds.add()
-                build.name = filename
-                build.fileext = fileext
+                if fileext in {'gz', 'xz'}:
+                    build = self.builds.add()
+                    build.name = filename + ".tar." + fileext
+                    build.filename = filename
+                    build.fileext = fileext
 
-            return context.window_manager.invoke_props_dialog(self)
-        self.report({"WARNING"}, "No build found")
+            return context.window_manager.invoke_props_dialog(self, width=800)
+        self.report({"WARNING"}, "No uild found")
         return {"CANCELLED"}
 
 def register():
     bpy.utils.register_class(SLDAILY_builds)
     bpy.utils.register_class(SL_OT_install_daily)
-    
+
 
 def unregister():
     bpy.utils.unregister_class(SL_OT_install_daily)
     bpy.utils.unregister_class(SLDAILY_builds)
-    
