@@ -161,7 +161,7 @@ class SL_OT_install_daily(Operator):
             self.report({"WARNING"}, "Unknown error while connecting %s" % ex)
             return {"CANCELLED"}
 
-        match = re.findall(r'''<a href=['"]https://builder.blender.org/download/daily/([^"]+)?\.tar\.([^"]+)['"].*?(?:</a|/)>''',
+        match = re.findall(r'''<a href=['"]https://cdn.builder.blender.org/download/daily/([^"]+)?\.tar\.([^"]+)['"].*?(?:</a|/)>''',
                            res.text, re.I)
 
         if match:
